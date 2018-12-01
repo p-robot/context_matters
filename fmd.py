@@ -11,7 +11,7 @@ import scipy.spatial as sp
 from os.path import join # for saving the state
 
 # This is housed locally
-import cy
+from context_matters import cy
 
 def FMDSpread(x, y, cattle, sheep, start, num_trials = None, \
     control_type = "cull", radius = None, time_max = 1000, verbose = False, \
@@ -29,6 +29,7 @@ def FMDSpread(x, y, cattle, sheep, start, num_trials = None, \
     maxvacc = 35000, vacc_eff = 0.9, \
     
     time_save_state = [], save_dir = None, \
+    silent_spread_times = [], \
     
     **kwargs):
     
@@ -233,17 +234,6 @@ def FMDSpread(x, y, cattle, sheep, start, num_trials = None, \
     if verbose:
         print("... done")
     
-    # Calculate cull/disposal times
-    
-    #if isinstance(delay_latency, (int, np.ndarray)) & 
-    #    isinstance(delay_detect, (int, np.ndarray)):
-    #    #time_undetect = delay_latency_i + delay_detect_i
-    
-    #time_dccull = time_undetect + delay_dccull_i
-    #time_ctrldisposal = time_ctrlcull + delay_ctrldisposal_i
-    #time_ipdisposal = time_ipcull + delay_ipdisposal_i
-    
-    # Disposal parameters, Cull -> Disposed
     # Relative transmissibility of carcasses to live animals
     culling_efficacy = (1.0 - cull_eff) * np.ones(N, dtype = float)
     
@@ -252,68 +242,7 @@ def FMDSpread(x, y, cattle, sheep, start, num_trials = None, \
     if verbose:
         print("Setting parameters")
     
-    # INPUT params from the Fortran model
-    if set_params == "INPUT":
-        
-        cattle_sus = 9.952; sheep_sus = 1.0
-        
-        # Per-capita transmissibility
-        cattle_trans = 1.589e-6; sheep_trans = 9.16e-7
-        
-        # Non-linearity terms for sheep
-        sheep_pows = 0.201; sheep_powt = 0.489
-        
-        # Non-linearity terms for cattle
-        cattle_pows = 0.412; cattle_powt = 0.424
-        
-    # INPUT params from the Keeling et al (2001) (and 2003)
-    if set_params == "KEELING2001":
-        
-        cattle_sus = 15.2; sheep_sus = 1.0
-        
-        # Per-capita transmissibility
-        cattle_trans = 4.3e-7; sheep_trans = 2.67e-7
-        
-        # Non-linearity terms for sheep
-        sheep_pows = 1.0; sheep_powt = 1.0
-        
-        # Non-linearity terms for cattle
-        cattle_pows = 1.0; cattle_powt = 1.0
-        
-    elif set_params == "TILDESLEY2008_CUMBRIA":
-        # Infection parameters (See Tildesley et al. (2008))
-        # (the model in this paper doesn't use powers on animal numbers)
-        # Per-capita susceptibility
-        cattle_sus = 180.7581308041645# 9.952 #5.7; 
-        sheep_sus = 168.82184642109027#1.0
-        
-        # Per-capita transmissibility
-        cattle_trans = 2.729748128451626E-05# 15.89E-7 #8.2E-4; 
-        sheep_trans = 2.7523730108211333E-05# 9.16E-7 #8.3E-4
-        
-        # Non-linearity terms for sheep
-        sheep_pows = 0.201; sheep_powt = 0.489
-        
-        # Non-linearity terms for cattle
-        cattle_pows = 0.412; cattle_powt = 0.424
-        
-    elif set_params == "TILDESLEY2006":
-        # Infection parameters (See Tildesley et al. (2006))
-        # (the model in this paper doesn't use powers on animal numbers)
-        # Per-capita susceptibility
-        cattle_sus = 10.5; sheep_sus = 1.0
-        
-        # Per-capita transmissibility
-        cattle_trans = 7.7e-7; sheep_trans = 5.1e-7
-        
-        # Non-linearity terms for sheep
-        sheep_pows = 1.0; sheep_powt = 1.0
-        
-        # Non-linearity terms for cattle
-        cattle_pows = 1.0; cattle_powt = 1.0
-    else:
-        if verbose:
-            print("Unknown parameter set, using TILDESLEY2006")
+    if set_params == "TILDESLEY2006":
         # Infection parameters (See Tildesley et al. (2006))
         # (the model in this paper doesn't use powers on animal numbers)
         # Per-capita susceptibility
@@ -347,6 +276,7 @@ def FMDSpread(x, y, cattle, sheep, start, num_trials = None, \
     start_Transmiss = sheep_trans*(sheep**sheep_powt) + \
         cattle_trans*(cattle**cattle_powt)
     
+    # Calculate gridding parameters
     gx = kwargs.get('gx', 1)
     gy = kwargs.get('gy', 1)
     if verbose:
@@ -377,12 +307,6 @@ def FMDSpread(x, y, cattle, sheep, start, num_trials = None, \
     
     if verbose:
         print("... done")
-    
-    # Culling parameters (see Tildesley et al. (2009))
-    # For UK 2001, f : [0.84, 0.9]; F : [3.5, 9.0]
-    #dc_f = 0.84 # accuracy of DC culling (ability to detect routes of trans'n)
-    #dc_F = 6.0 # overall level of DC culling per reported case
-    # F = 6 is from SI of Tildesley et al. (2006)
     
     # Recording the farm that infected each other farm
     # Default value is -1 (-2 for RC)
@@ -561,8 +485,6 @@ def FMDSpread(x, y, cattle, sheep, start, num_trials = None, \
             # Iterate the infection process
             status, new_infections, infectors = iterate_fn(status, KDIST,
                    Suscept, Transmiss, delay_latency_i, spark)
-            # status, new_infections, infectors = IterateGrid(status, grid, delay_latency, \
-            #         Transmiss, Suscept, Num, MaxRate, first_, last_, kern, coords)
             
             # Update the vector showing who infected whom
             if len(new_infections) > 0:
@@ -577,22 +499,21 @@ def FMDSpread(x, y, cattle, sheep, start, num_trials = None, \
             Sus = np.where((status == 0) & (vstatus == 0))[0]
             Exposed = np.sum(status > 0)
             
-            #E = np.sum(Exp); I = np.sum(Infd); R2 = np.sum(Rep)
+            if not (t in silent_spread_times):
+                if (control_type == "vacc"):
+                    Vacc = (vstatus > 0)
+                    V = np.sum(Vacc)
+                    Imm = (who_infected_me == -3)
             
-            if (control_type == "vacc"):
-                Vacc = (vstatus > 0)
-                V = np.sum(Vacc)
-                Imm = (who_infected_me == -3)
-            
-            # If any premises that were being vaccinated are now infected, 
-            # switch off their vaccination status
-            if (control_type == "vacc"):
-                if len(new_infections) > 0:
-                    if len(Vacc[new_infections]) > 0:
+                # If any premises that were being vaccinated are now infected, 
+                # switch off their vaccination status
+                if (control_type == "vacc"):
+                    if len(new_infections) > 0:
+                        if len(Vacc[new_infections]) > 0:
                     
-                        vstatus[new_infections] = 0
-                        Vacc = (vstatus > 0)
-                        V = np.sum(Vacc)
+                            vstatus[new_infections] = 0
+                            Vacc = (vstatus > 0)
+                            V = np.sum(Vacc)
             
             # Update the plot of the outbreak
             if plotting:
@@ -614,233 +535,228 @@ def FMDSpread(x, y, cattle, sheep, start, num_trials = None, \
                 # Update activities (sometimes using edge colours)
                 ec = fc
                 
-                #fc = [purple if x else y for x, y in zip(bd, fc)]
-                #ec = [blue if x else y for x, y in zip(bc, ec)]
-                
                 scatter_plot.set_facecolor(fc)
                 scatter_plot.set_edgecolors(ec)
                 rest_time = 0.02
                 time.sleep(rest_time)
                 fig.canvas.draw()
             
-            # Check for culling of infected farms
-            ipculls = np.where(status >= delay_latency_i + \
-                delay_detect_i + delay_ipcull_i)[0]
+            if not (t in silent_spread_times):
+                # Check for culling of infected farms
+                ipculls = np.where(status >= delay_latency_i + \
+                    delay_detect_i + delay_ipcull_i)[0]
             
-            # Check for disposal on infected farms
-            ipdispose = np.where(status >= delay_latency_i + \
-                delay_detect_i + delay_ipcull_i + delay_ipdisposal_i)[0]
+                # Check for disposal on infected farms
+                ipdispose = np.where(status >= delay_latency_i + \
+                    delay_detect_i + delay_ipcull_i + delay_ipdisposal_i)[0]
             
-            # Iterate vaccination on farms that have been vaccinated
-            if (control_type == "vacc"):
-                if (np.sum(vstatus) > 0): # is np.any faster here?  
-                    vstatus[vstatus > 0] += 1
+                # Iterate vaccination on farms that have been vaccinated
+                if (control_type == "vacc"):
+                    if (np.sum(vstatus) > 0): # is np.any faster here?  
+                        vstatus[vstatus > 0] += 1
             
-            ########################
-            ## Perform IP culling ##
-            ########################
-            if( (len(ipculls) > 0)):
-                
-                carcasses[ipculls] += cattle[ipculls] + sheep[ipculls]
-                cattle[ipculls] = 0
-                sheep[ipculls] = 0
-                Transmiss[ipculls] *= culling_efficacy[ipculls]
-                wait_cull[ipculls] = -1
-                RC[ipculls] = 0
-                DC[ipculls] = 0
-                
                 ########################
-                ## Perform DC culling ##
+                ## Perform IP culling ##
                 ########################
-                if dcculling:
-                    #print("DC culling")
-                    # If DC culling is to be performed.  
-                    # the prob that farm i is a DC from IP j is :
-                    #  1 - f exp(-F . Rate(i,j))
-                    #print(who_infected_me)
-                    #print(ipculls)
-                    # List premises that are both currently being culled
-                    # and also infected other farms (candidate DCs)
-                    candDCs = np.where(np.in1d(who_infected_me, ipculls))[0]
+                if( (len(ipculls) > 0)):
+                
+                    carcasses[ipculls] += cattle[ipculls] + sheep[ipculls]
+                    cattle[ipculls] = 0
+                    sheep[ipculls] = 0
+                    Transmiss[ipculls] *= culling_efficacy[ipculls]
+                    wait_cull[ipculls] = -1
+                    RC[ipculls] = 0
+                    DC[ipculls] = 0
+                
+                    ########################
+                    ## Perform DC culling ##
+                    ########################
+                    if dcculling:
+                        # If DC culling is to be performed.  
+                        # the prob that farm i is a DC from IP j is :
+                        #  1 - f exp(-F . Rate(i,j))
                     
-                    NDC = len(candDCs)
+                        # List premises that are both currently being culled
+                        # and also infected other farms (candidate DCs)
+                        candDCs = np.where(np.in1d(who_infected_me, ipculls))[0]
                     
-                    # Check that these farms are not yet reported ... 
+                        NDC = len(candDCs)
                     
-                    # If there are some candidate DCs
-                    if(NDC > 0):
+                        # Check that these farms are not yet reported ... 
+                    
+                        # If there are some candidate DCs
+                        if(NDC > 0):
                         
-                        # List the IPs that infected each candidate DC
-                        candIPs = who_infected_me[candDCs]
-                        NIP = len(candIPs)
+                            # List the IPs that infected each candidate DC
+                            candIPs = who_infected_me[candDCs]
+                            NIP = len(candIPs)
                         
-                        #K = KDIST[np.ix_(candIPs, candDCs)]
-                        #T=np.tile(Transmiss[candIPs].reshape(NIP, 1),(1, NDC))
-                        #S=np.tile(Suscept[candDCs],(NIP, 1))
-                        #P_DC = 1 - dc_f * np.exp(-dc_F * T * S * K)
+                            #K = KDIST[np.ix_(candIPs, candDCs)]
+                            #T=np.tile(Transmiss[candIPs].reshape(NIP, 1),(1, NDC))
+                            #S=np.tile(Suscept[candDCs],(NIP, 1))
+                            #P_DC = 1 - dc_f * np.exp(-dc_F * T * S * K)
                         
-                        TSK = Transmiss[candIPs][:,None] * \
-                                Suscept[candDCs][None,:] * \
-                                KDIST[np.ix_(candIPs, candDCs)]
+                            TSK = Transmiss[candIPs][:,None] * \
+                                    Suscept[candDCs][None,:] * \
+                                    KDIST[np.ix_(candIPs, candDCs)]
                         
-                        P_DC = 1 - dc_f * np.exp(-dc_F * TSK)
+                            P_DC = 1 - dc_f * np.exp(-dc_F * TSK)
                         
-                        DC_EVENT = (P_DC > np.random.rand(NIP, NDC))
-                        DC_EVENT = candDCs[(np.sum(DC_EVENT, axis = 0) > 0)]
+                            DC_EVENT = (P_DC > np.random.rand(NIP, NDC))
+                            DC_EVENT = candDCs[(np.sum(DC_EVENT, axis = 0) > 0)]
                         
-                        # Start the waiting time
-                        wait_cull[DC_EVENT] = 0
+                            # Start the waiting time
+                            wait_cull[DC_EVENT] = 0
                         
-                        # Designate this premises as a DC cull
-                        DC[DC_EVENT] = 1
+                            # Designate this premises as a DC cull
+                            DC[DC_EVENT] = 1
                 
-                ##################
-                ## Ring culling ##
-                ##################
+                    ##################
+                    ## Ring culling ##
+                    ##################
                 
-                # Designate candidates for ring culling around infected premises
-                # if control type is 'cull' and the cull radius is not None
+                    # Designate candidates for ring culling around infected premises
+                    # if control type is 'cull' and the cull radius is not None
                 
-                if ((control_type == "cull") & (radius is not None)):
-                    if verbose:
-                        print("Ring culling")
+                    if ((control_type == "cull") & (radius is not None)):
+                        if verbose:
+                            print("Ring culling")
                     
-                    # Choose the ring cull candidates as those susceptibles 
-                    # within the cull radius.  
+                        # Choose the ring cull candidates as those susceptibles 
+                        # within the cull radius.  
                     
-                    inCullRadius = DIST[np.ix_(ipculls, Sus)] < radius
-                    inAnyCullRadius = (np.sum(inCullRadius, axis = 0) > 0)
+                        inCullRadius = DIST[np.ix_(ipculls, Sus)] < radius
+                        inAnyCullRadius = (np.sum(inCullRadius, axis = 0) > 0)
                     
-                    # Determine the ring culling candidates
-                    candidatesRc = Sus[inAnyCullRadius]
+                        # Determine the ring culling candidates
+                        candidatesRc = Sus[inAnyCullRadius]
                 
-                ######################
-                ## Ring vaccination ##
-                ######################
+                    ######################
+                    ## Ring vaccination ##
+                    ######################
                 
-                # Designate candidates for ring vacc'n around infected premises
-                # if control type is 'vacc' and the vacc'n radius is not None
+                    # Designate candidates for ring vacc'n around infected premises
+                    # if control type is 'vacc' and the vacc'n radius is not None
                 
-                if ((control_type == "vacc") & (radius is not None)):
-                    if verbose:
-                        print("Ring vaccination")
+                    if ((control_type == "vacc") & (radius is not None)):
+                        if verbose:
+                            print("Ring vaccination")
                     
-                    inVaccRadius = DIST[np.ix_(ipculls,Sus)] < radius
-                    inAnyVaccRadius = (np.sum(inVaccRadius, axis = 0) > 0)
-                    n = Sus[inAnyVaccRadius]
+                        inVaccRadius = DIST[np.ix_(ipculls,Sus)] < radius
+                        inAnyVaccRadius = (np.sum(inVaccRadius, axis = 0) > 0)
+                        n = Sus[inAnyVaccRadius]
                     
-                    # If the premises in question are susceptible then they can
-                    # be vaccination candidates
-                    candidatesVc = n[status[n] == 0]
+                        # If the premises in question are susceptible then they can
+                        # be vaccination candidates
+                        candidatesVc = n[status[n] == 0]
             
-            # If any disposal is to take place (with was checked before the
-            # outbreak has been evolved using the 'Iterate' function), 
-            # then remove carcasses from the pile update transmissibility
-            if len(ipdispose) > 0:
-                carcasses[ipdispose] = 0
-                Transmiss[ipdispose] = 0
-                Suscept[ipdispose] = 0
-                status[ipdispose] = -1
+                # If any disposal is to take place (with was checked before the
+                # outbreak has been evolved using the 'Iterate' function), 
+                # then remove carcasses from the pile update transmissibility
+                if len(ipdispose) > 0:
+                    carcasses[ipdispose] = 0
+                    Transmiss[ipdispose] = 0
+                    Suscept[ipdispose] = 0
+                    status[ipdispose] = -1
             
-            ################################
-            # Start timers for vaccination #
-            ################################
+                ################################
+                # Start timers for vaccination #
+                ################################
             
-            # Choose candidates to vaccinate (if any constraints on vacc)
-            # then start their timers
-            if (control_type == "vacc"):
-                if candidatesVc.any():
+                # Choose candidates to vaccinate (if any constraints on vacc)
+                # then start their timers
+                if (control_type == "vacc"):
+                    if candidatesVc.any():
                 
-                    # Choose the actual premises to vaccinate
-                    VCs = candidatesVc
+                        # Choose the actual premises to vaccinate
+                        VCs = candidatesVc
                     
-                    # Take a subset of the vacc candidates (if needed)
-                    if np.sum(cattle[candidatesVc]) > maxvacc:
-                        np.random.shuffle(candidatesVc)
-                        within_budget = (np.cumsum(cattle[candidatesVc]) <= maxvacc)
-                        VCs = candidatesVc[within_budget]
+                        # Take a subset of the vacc candidates (if needed)
+                        if np.sum(cattle[candidatesVc]) > maxvacc:
+                            np.random.shuffle(candidatesVc)
+                            within_budget = (np.cumsum(cattle[candidatesVc]) <= maxvacc)
+                            VCs = candidatesVc[within_budget]
                     
-                    # Set a counter on these for how many days they've been 
-                    # vaccinated for.  
-                    vstatus[VCs] = 1
+                        # Set a counter on these for how many days they've been 
+                        # vaccinated for.  
+                        vstatus[VCs] = 1
                 
-                    # Reset the variable holding the vacc candidates
-                    candidatesVc = np.array([])
+                        # Reset the variable holding the vacc candidates
+                        candidatesVc = np.array([])
             
-            ####################################
-            # Start timers for control culling #
-            ####################################
+                ####################################
+                # Start timers for control culling #
+                ####################################
             
-            # Choose candidates to ring cull (if any constraints on culling)
-            # then start their timers
-            if candidatesRc.any():
+                # Choose candidates to ring cull (if any constraints on culling)
+                # then start their timers
+                if candidatesRc.any():
                 
-                # Choose the actual premises to ring cull
-                RCs = candidatesRc
+                    # Choose the actual premises to ring cull
+                    RCs = candidatesRc
                 
-                # Take a subset of the ring-cull candidates if needed
-                if len(candidatesRc) > maxringcull:
-                    np.random.shuffle(candidatesRc)
-                    RCs = candidatesRc[0:maxringcull]
+                    # Take a subset of the ring-cull candidates if needed
+                    if len(candidatesRc) > maxringcull:
+                        np.random.shuffle(candidatesRc)
+                        RCs = candidatesRc[0:maxringcull]
                 
-                # Set the waiting time to zero
-                wait_cull[RCs] = 0
-                RC[RCs] = 1
+                    # Set the waiting time to zero
+                    wait_cull[RCs] = 0
+                    RC[RCs] = 1
                 
-                # Reset the variable holding the candidates
-                candidatesRc = np.array([])
+                    # Reset the variable holding the candidates
+                    candidatesRc = np.array([])
             
-            ###########################
-            # Implement vacc immunity #
-            ###########################
-            if (control_type == "vacc"):
-                # Iterate vaccination on premises that have been vaccinated
-                immunes = (vstatus >= delay_immune_i)
+                ###########################
+                # Implement vacc immunity #
+                ###########################
+                if (control_type == "vacc"):
+                    # Iterate vaccination on premises that have been vaccinated
+                    immunes = (vstatus >= delay_immune_i)
             
-                if np.sum(immunes).any():
+                    if np.sum(immunes).any():
                 
-                    who_infected_me[immunes] = -3
-                    vstatus[immunes] = 0
-                    #status[immunes] = -2 # leave these as susceptible
-                    Transmiss[immunes] *= (1. - vacc_eff)
-                    Suscept[immunes] *= (1. - vacc_eff)
+                        who_infected_me[immunes] = -3
+                        vstatus[immunes] = 0
+                        #status[immunes] = -2 # leave these as susceptible
+                        Transmiss[immunes] *= (1. - vacc_eff)
+                        Suscept[immunes] *= (1. - vacc_eff)
             
-            #############################
-            # Implement control culling #
-            #############################
+                #############################
+                # Implement control culling #
+                #############################
             
-            ctrlculls = np.where(wait_cull == delay_ctrlcull_i)[0]
+                ctrlculls = np.where(wait_cull == delay_ctrlcull_i)[0]
             
-            # Perform culling on farms that have been designated as ring culls
-            if (len(ctrlculls) > 0):
+                # Perform culling on farms that have been designated as ring culls
+                if (len(ctrlculls) > 0):
                 
-                who_infected_me[ctrlculls] = -2
-                carcasses[ctrlculls] += cattle[ctrlculls] + sheep[ctrlculls]
-                cattle[ctrlculls] = 0
-                sheep[ctrlculls] = 0
-                Transmiss[ctrlculls] *= culling_efficacy[ctrlculls]
-                status[ctrlculls] = -1
-                wait_cull[ctrlculls] = -2
+                    who_infected_me[ctrlculls] = -2
+                    carcasses[ctrlculls] += cattle[ctrlculls] + sheep[ctrlculls]
+                    cattle[ctrlculls] = 0
+                    sheep[ctrlculls] = 0
+                    Transmiss[ctrlculls] *= culling_efficacy[ctrlculls]
+                    status[ctrlculls] = -1
+                    wait_cull[ctrlculls] = -2
                 
-                # Set the disposal wait time to zero
-                wait_dispose[ctrlculls] = 0
-            anycull = np.any(wait_cull >= 0)
+                    # Set the disposal wait time to zero
+                    wait_dispose[ctrlculls] = 0
+                
+                ##############################
+                # Implement control disposal #
+                ##############################
             
-            ##############################
-            # Implement control disposal #
-            ##############################
+                ctrldispose = np.where(wait_dispose == delay_ctrldisposal_i)[0]
             
-            ctrldispose = np.where(wait_dispose == delay_ctrldisposal_i)[0]
-            
-            if (len(ctrldispose) > 0):
-                carcasses[ctrldispose] = 0
-                wait_dispose[ctrldispose] = -2
-            
-            anydispose = np.any(wait_dispose >= 0)
+                if (len(ctrldispose) > 0):
+                    carcasses[ctrldispose] = 0
+                    wait_dispose[ctrldispose] = -2
             
             ##########################################
             # Determine if stopping condition is met # 
             ##########################################
+            anycull = np.any(wait_cull >= 0)
+            anydispose = np.any(wait_dispose >= 0)
             
             # E + I + R2
             if( (Exposed + V + np.sum(carcasses) + anycull + anydispose) == 0 ):
@@ -925,77 +841,6 @@ def FMDSpread(x, y, cattle, sheep, start, num_trials = None, \
     return(results)
 
 
-def Iterate(status, KDIST, Suscept, Transmiss, delay_latency, spark = 0, **kwargs):
-    """
-    Function to evolve the infection through time
-    
-    Parameters
-    ----------
-      - status : np.array
-          infection status of each premises (days since infection event)
-      - KDIST : np.array (2D)
-          distance matrix evaluated according to the spatial kernel
-      - Suscept : np.array
-          array of susceptibility of each premises
-      - Transmiss : np.array
-          array of transmissibility of each premises
-      - delay_latency : np.array
-          latency of the disease in days (no. of days that premises are latently
-          infected after infection event)
-      - **kwargs 
-          further keyword arguments
-    
-    Returns
-    -------
-      - status: np.array
-          updated state vector; infection status of each premises
-    """
-    
-    # Create a vector of events that occur this time step
-    Event = np.zeros(len(status), dtype = int)
-    
-    #EXP = np.where((status > 0) & (status <= delay_latency))[0]
-    INF = np.where((status >= delay_latency))[0]# & (status < delay_cull))
-    SUS = np.where(status == 0)[0]
-    
-    #nEXP = len(INF)
-    nINF = len(INF)
-    nSUS = len(SUS)
-    
-    if ((nINF > 0) & (nSUS > 0)):
-        # Loop through all infectious farms.  
-        
-        # Evaluate the kernel function at the specified distances
-        
-        K = KDIST[np.ix_(INF, SUS)]
-        
-        # Find the probability of each susceptible farm becoming infected from
-        # each infected farm
-        #TRANS = np.tile(Transmiss[INF].reshape(nINF,1), (1, nSUS))
-        #SUSCEPT = np.tile(Suscept[SUS], (nINF, 1))
-        #P = 1 - np.exp(-TRANS * SUSCEPT * K)
-        
-        # Use numpy broadcasting for this calculation (create dummy dims)
-        TRANSSUSCEPT = Transmiss[INF][:, None] * Suscept[SUS][None, :]
-        P = 1 - np.exp(-TRANSSUSCEPT * K + spark)
-        
-        # Generate random numbers for the infection events
-        INFECTION_EVENT = (P > np.random.rand(nINF, nSUS))
-        
-        # Find the index of susceptible farms which become infected
-        INFECTION_ROWS = SUS[(np.sum(INFECTION_EVENT, axis = 0) > 0)]
-        
-        # Update the event vector
-        Event[INFECTION_ROWS] = 1
-    
-    status[status > 0] += 1
-    
-    # Update the status vector
-    status = status + Event
-    
-    return(status, [], [])
-
-
 def IterateWho(status, KDIST, Suscept, Transmiss, delay_latency, spark = 0.0, **kwargs):
     """
     Function to evolve the infection through time, recording whom infected who
@@ -1034,7 +879,6 @@ def IterateWho(status, KDIST, Suscept, Transmiss, delay_latency, spark = 0.0, **
     # Create an empty array of who infected who
     INFECTORS = NEW_INFECTIONS = np.array([])
     
-    #EXP = np.where((status > 0) & (status <= delay_latency))[0]
     INF = np.where((status >= delay_latency))[0]# & (status < delay_cull))
     SUS = np.where(status == 0)[0]
     
@@ -1042,23 +886,14 @@ def IterateWho(status, KDIST, Suscept, Transmiss, delay_latency, spark = 0.0, **
     nSUS = len(SUS)
     
     if ((nINF > 0) & (nSUS > 0)):
-        # Loop through all infectious farms.  
+        # Loop through all infectious farms (using numpy broadcasting).  
         
         # Evaluate the kernel function at the specified distances
-        
-        #K = KDIST[np.ix_(INF, SUS)]
-        #TRANS = np.tile(Transmiss[INF].reshape(nINF,1), (1, nSUS))
-        #SUSCEPT = np.tile(Suscept[SUS], (nINF, 1))
-        
         # Use numpy broadcasting for this calculation (create dummy dims)
         TSK = Transmiss[INF][:, None] * Suscept[SUS][None, :] * KDIST[np.ix_(INF, SUS)]
         
-        #TRANS <- kronecker(matrix(1, 1, nSUS),Transmiss[INF])
-        #SUSCEPT <- kronecker(matrix(1, nINF, 1), t(Suscept[SUS]))
-        
         # Find the probability of each susceptible farm becoming infected from
         # each infected farm
-        #P = 1 - np.exp(-TRANS * SUSCEPT * K + spark)
         P = 1 - np.exp(-TSK + spark)
         
         # Generate random numbers for the infection events
@@ -1067,9 +902,7 @@ def IterateWho(status, KDIST, Suscept, Transmiss, delay_latency, spark = 0.0, **
         #########################
         # FINDING THE INFECTORS #
         #########################
-        #INFECTION_EVENT.any(axis = 0)
-        
-        # Find which susceptibles became infected
+        # Find which susceptibles have become infected
         NEW_INFECTIONS = np.sum(INFECTION_EVENT, axis = 0)
         
         if NEW_INFECTIONS.any():
@@ -1077,7 +910,7 @@ def IterateWho(status, KDIST, Suscept, Transmiss, delay_latency, spark = 0.0, **
             
             # Subset matrix of all possible infections to show just 
             # new infections
-            NN = INFECTION_EVENT[:,NEW_INFECTIONS.astype(bool)]
+            NN = INFECTION_EVENT[:, NEW_INFECTIONS.astype(bool)]
             
             # Loop through all the infection events (finding the infector)
             INFECTORS = [np.where(n)[0] for n in NN.T]
@@ -1105,135 +938,6 @@ def IterateWho(status, KDIST, Suscept, Transmiss, delay_latency, spark = 0.0, **
     
     # Output 
     return(status, NEW_INFECTIONS, INFECTORS)
-
-
-def IterateGrid(status, grid, period_latent, Transmiss, Suscept, Num, \
-    MaxRate, first_, last_, kern, coords):
-    """
-    Infection process for spatial array of farms.  
-    (see am4fmd.utils.infection_process)
-    
-    Numpy version of the Cython code.
-    
-    
-    Notes:
-        It seems to be the MaxRate and Max_Sus_grid that's slightly
-        inconsistent with the Matlab version of this code.  
-    
-    """
-    # Copy the status vetor
-    nstatus = copy.copy(status)
-    
-    # Pre-allocate the resultant vector
-    Event = np.zeros(nstatus.shape[0], dtype = int)
-    
-    # Find the index of infectious farms
-    INF = np.where( (nstatus > (1 + period_latent) ))[0]
-    #print(INF)
-    # Find grid cells of infected farm locations
-    IGrids = grid[INF]
-    
-    # Find the number of infected farms
-    NI = INF.shape[0]
-    
-    # Use broadcasting on this ...     
-    #print("----------------------------------------")
-    
-    MaxProbAll = 1 - np.exp(-Transmiss[INF,None] * Num[None,:] * MaxRate[IGrids,:])
-    #rng = np.random.rand(*MaxProbAll.shape)
-    #mm = np.where( MaxProbAll - rng > 0 )
-    
-    ########################################
-    # SUSCEPTIBLE TO INFECTIOUS TRANSITION #
-    ########################################
-    # Loop through all infectious farms
-    for ii in range(NI):
-        
-        # Find the infectious farm's index
-        INFi = [INF[ii]]
-        
-        # Transmissibility of the infectious farm 
-        # multiplied by the number of animals in that farm
-        trans = np.multiply(-Transmiss[INFi], Num)
-        
-        maxr = MaxRate[IGrids[ii],:]
-        
-        # Elementwise multiplication
-        rate = np.multiply(trans, maxr) # issues with mult by np.inf here
-        
-        MaxProb = 1 - np.exp(rate)
-        
-        #print("MP", MaxProb)
-        #print("MaxProbAll", MaxProbAll)
-        
-        # These are the grids that need further consideration
-        rng = np.random.rand(len(MaxProb))
-        m = np.where( MaxProb - rng > 0)[0]
-        #print(m)
-        
-        #m = mm[ii]
-        for n in range(len(m)):
-            s = 1
-            
-            # Loop through grids where an infection event may have occurred.  
-            M = m[n]
-            
-            #PAB = 1 - np.exp(np.multiply(-Transmiss[INFi], MaxRate[IGrids[ii],M]))
-            PAB = 1 - np.exp(-Transmiss[INFi]*MaxRate[IGrids[ii],M])
-            
-            # For comparison it might be of interest to save all the values
-            # all_PAB[ii, n] = PAB
-            
-            # If the rate is infinite, then PAB is 1.  
-            if PAB == 1:
-                # Calculate the infection probability for each farm in the 
-                # susceptible grid square in question
-                ind = np.arange(start = first_[M], \
-                    stop = last_[M]+1, \
-                    dtype = int)
-                #ind = range(first_[M], last_[M]+1)
-                #print("INFi", INFi)
-                #print("ind", ind)
-                K = kern(sp.distance.cdist(coords[INFi], coords[ind], 'sqeuclidean')).flatten()
-                #print("K", K)
-                #print("K.shape", K.shape)
-                #print("Transmiss[INFi].shape", Transmiss[INFi].shape)
-                #print("Suscept[ind].shape", Suscept[ind].shape)
-                Q = 1 - np.exp(-Transmiss[INFi] * Suscept[ind] * K)
-                
-                rng1 = np.random.rand(len(Q))
-                
-                test = (rng1 < Q) & (nstatus[ind]==0)
-                #print("ind", ind)
-                #print("test", test.shape)
-                #print("ind[test]", ind[test])
-                Event[ind[test]] = 1
-            else:
-                # Loop through all susceptible farms in the grids where an
-                # infection event occurred.  
-                R = np.random.rand(Num[M])
-                for j in range(int(Num[M])):
-                    ind = [first_[M] + j] #- 1
-                    P = 1 - s*(1 - PAB)**(Num[M] - j)
-                    
-                    K = kern(sp.distance.cdist(coords[INFi], coords[ind], 'sqeuclidean'))
-                    if R[j] < (PAB / P):
-                        s = 0
-                        # Need to use matrix multiplication here... 
-                        Q = 1 - np.exp(-Transmiss[INFi]*Suscept[ind]*K)#K[INFi, ind])
-                        
-                        if (R[j] < Q/P) & (nstatus[ind] == 0):
-                            Event[ind] = 1
-    
-    # Evolve the infection process of those farms which are already exposed
-    nstatus[(nstatus > 0)] += 1
-    
-    # Evolve the infection process of those farms which have just been exposed
-    nstatus = np.add(nstatus, Event)
-    
-    NEW_INFECTIONS = np.zeros(0); INFECTORS = np.zeros(0)
-    
-    return(nstatus, NEW_INFECTIONS, INFECTORS)
 
 
 def Coords2Grid(x, y, grid_n_x, grid_n_y):
@@ -1411,17 +1115,9 @@ def calc_grid_probs(grid, grid_n_x, grid_n_y, Suscept, kernel_function,\
     
     # First farm in grid, -1 if the list is empty
     first_ = np.asarray([x[0] if len(x) > 0 else -1 for x in fpg])
-    # This was the previous code (a lot slower): 
-    #first_ = map(lambda i: np.nanmin(np.append(i, np.nan)), fpg)
-    #first_ = np.asarray(first_)
-    #first_[np.isnan(first_)] = -1
-    #first_ = first_.astype(int)
     
     # Last farm in grid, -2 if the list is empty
     last_ = np.asarray([x[-1] if len(x) > 0 else -2 for x in fpg])
-    # Previous code, much slower
-    #last_ = map(lambda i: np.max(np.append(i, -2)), fpg)
-    #last_ = np.asarray(last_).astype(int)
     
     NCOL = float(grid_n_x); NROW = float(grid_n_y)
     HEIGHT = float(d_perimeter_y)/NROW; WIDTH = float(d_perimeter_x)/NCOL
@@ -1448,43 +1144,6 @@ def calc_grid_probs(grid, grid_n_x, grid_n_y, Suscept, kernel_function,\
     np.fill_diagonal(MaxRate, np.inf)
     
     return(MaxRate, Num, first_, last_, max_sus, Dist2all, KDist2all)
-
-
-
-def ExpKernel(x, g = 4.8, h = 2.4):
-    """
-    Exponential kernel function
-    
-    Parameters
-    ----------
-      - x : float, np.array
-          squared distance (km) at which to evaluate the kernel
-      - g, h: float, float
-          parameters of the exponential kernel
-    
-    Returns
-    -------
-      - scalar or np.array of kernel function evaluated at x
-    """
-    return(g*np.exp(-h*x))
-
-
-def PowerKernel(x, d = 0.41):
-    """
-    Power law kernel function
-    
-    Parameters
-    ----------
-      - x : float, np.array
-          squared distance (km) at which to evaluate the kernel
-      - d: float
-          parameters of the power-law kernel
-    
-    Returns
-    -------
-      - scalar or np.array of kernel function evaluated at x
-    """
-    return(d/x**2)
 
 
 def UKKernel(x):
