@@ -11,7 +11,7 @@ import numpy as np, copy, pandas as pd, time, csv
 from am4fmd import utils, cy, iterate
 from os.path import join
 
-import core, rli, utilities
+from . import core, rli, utilities
 
 class FMDSim(rli.Simulation):
     """
