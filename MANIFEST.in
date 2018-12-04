@@ -1,0 +1,4 @@
+include setup.py
+include context_matters/*.py
+include context_matters/*.pyx
+include context_matters/*.c
