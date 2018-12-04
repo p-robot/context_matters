@@ -38,23 +38,6 @@ def dist_sqeuclidean(
     return (x1[0] - x2[0])**2 + (x1[1] - x2[1])**2
 
 
-def Kernel(
-    np.ndarray[DTYPE_d, ndim = 1] x1, 
-    np.ndarray[DTYPE_d, ndim = 1] x2
-    ):
-    x = dist_sqeuclidean1(x1, x2)
-    return(0.3)
-
-def KernelExponential(
-    np.ndarray[DTYPE_d, ndim = 1] x1, 
-    np.ndarray[DTYPE_d, ndim = 1] x2
-    ):
-    
-    x = dist_sqeuclidean1(x1, x2)
-    K = 4.8* exp_func(-2.4*np.sqrt(x))
-    return(K)
-
-
 def UKKernel(
     np.ndarray[DTYPE_d, ndim = 1] x1, 
     np.ndarray[DTYPE_d, ndim = 1] x2
