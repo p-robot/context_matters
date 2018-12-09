@@ -235,3 +235,123 @@ def hull_area(np.ndarray[DTYPE_d, ndim=1] x, np.ndarray[DTYPE_d, ndim=1] y):
         A += x[pt] * y[ptn]
         A -= x[ptn] * y[pt]
     return A / 2.0
+
+
+def evolve_infection(
+    np.ndarray[DTYPE_t, ndim = 1] status, 
+    np.ndarray[DTYPE_d, ndim = 2] MaxRate, 
+    np.ndarray[DTYPE_t, ndim = 1] grid, 
+    np.ndarray[DTYPE_d, ndim = 1] Transmiss, 
+    np.ndarray[DTYPE_d, ndim = 1] Suscept, 
+    np.ndarray[DTYPE_t, ndim = 1] first_in_grid, 
+    np.ndarray[DTYPE_t, ndim = 1] last_in_grid, 
+    DTYPE_t period_latent, 
+    np.ndarray[DTYPE_t, ndim = 1] Num, 
+    np.ndarray[DTYPE_d, ndim = 2] K
+    ):
+    """
+    Evolve an infection.  
+
+    Based on code from Keeling and Rohani (2008).  
+    """
+
+    # Define the type of all variables used
+    cdef int slen = status.shape[0]
+    cdef np.ndarray[DTYPE_t, ndim=1] INF=np.where((status>(1+period_latent)))[0]
+    cdef np.ndarray[DTYPE_t, ndim = 1] Event = np.zeros(slen, dtype = DTYPE)
+    cdef np.ndarray[DTYPE_t, ndim = 1] IGrids, m
+    cdef np.ndarray[DTYPE_d] R, trans, maxr, rate, MaxProb, rng
+    cdef int NI = INF.shape[0], s, ind1, INFi, ii, j, n, M, leng
+    cdef float PAB, Q, P#, rated, MaxProbd
+
+    # Find grid cells of infectious farm locations
+    IGrids = grid[INF]
+    ########################################
+    # SUSCEPTIBLE TO INFECTIOUS TRANSITION #
+    ########################################
+    # Loop through all infectious farms
+    for ii in range(NI):
+    
+        # Assign INFi the infected farm's index
+        INFi = INF[ii]
+    
+        ######################## replacement loop, used for speed testing.  
+        #R = np.random.rand(Ngrids)
+        #for iii in range(Ngrids):
+        #    rated = -Transmiss[INFi]*Num[iii]*MaxRate[IGrids[ii],iii]
+        #    MaxProbd = 1 - exp_func(rated)
+        #    if (R[iii] < MaxProbd):
+        #        m[iii] = 1
+        #m = np.where(m == 1)[0]
+        #################################
+    
+        trans = -Transmiss[INFi]*Num
+    
+        maxr = MaxRate[IGrids[ii],:]
+    
+        # Elementwise multiplication
+        rate = np.multiply(trans, maxr)
+    
+        MaxProb = 1 - np.exp(rate)
+    
+        rng = np.random.rand(len(MaxProb))
+        m = np.where( MaxProb - rng > 0)[0]
+    
+        # These are the grids which need further consideration
+        for n in range(len(m)):
+            s = 1
+        
+            # Loop thru grids where an infection event may have occurred.  
+            M = m[n]
+            PAB = 1 - exp(-Transmiss[INFi]*MaxRate[IGrids[ii],M])
+            if (PAB == 1):
+            
+                # Calculate the infection probability for each farm in the
+                # susceptible grid
+                leng = last_in_grid[M] - first_in_grid[M] + 1
+                R = np.random.rand(leng)
+            
+                for j in range(leng):
+                    ind1 = first_in_grid[M] + j
+                    Q=1-exp(-Transmiss[INFi]*Suscept[ind1]*K[INFi, ind1])
+                    if ((R[j] < Q) & (status[ind1] == 0)):
+                    
+                        Event[ind1] = 1
+            else:
+                # Loop through all susceptible farms in the grids where an
+                # infection event occurred.  
+                R = np.random.rand(Num[M])
+            
+                for j in range(Num[M]):
+                
+                    P = 1 - s*(1 - PAB)**(Num[M] - j)
+                
+                    #####################
+                    if P == 0.0:
+                        print "P == 0.0, setting to 1E-7"
+                        print "Infected:", np.where(status > 0)
+                        print "Culled:", np.where(status < 0)
+                        print "P:", P
+                        print "s:", s
+                        print "PAB:", PAB
+                        print "Num[M]:", Num[M]
+                        print "j", j
+                        P = 1E-7
+                    #####################
+                
+                    if (R[j] < (PAB / P)):
+                    
+                        s = 0
+                    
+                        ind1 = first_in_grid[M] + j
+                        Q = 1 - exp(-Transmiss[INFi]*Suscept[ind1]*K[INFi,ind1])
+                    
+                        if (R[j] < Q/P) & (status[ind1] == 0):
+                        
+                            Event[ind1] = 1
+
+    # Evolve infection process of exposed and already infectious farms
+    status[status > 0] += 1
+    status = status + Event
+
+    return(status, Event)
