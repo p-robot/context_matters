@@ -8,17 +8,16 @@ W. Probert
 
 import scipy.spatial as sp
 import numpy as np, copy, pandas as pd, time, csv
-from am4fmd import utils, cy, iterate
 from os.path import join
 
-from . import core, rli, utilities
+from . import core, rli, utilities, cy
 
 class FMDSim(rli.Simulation):
     """
     Simulation class for managing interactions between agent and environment
     
     Most methods for this class are defined in the parent class in the
-    am4fmd.rli module.  The user defined methods are full2obs which transforms
+    rli module.  The user defined methods are full2obs which transforms
     the state from a 'full' state that encompasses all the information that 
     is needed for the simulation to evolve, to an 'observed' state, which is the
     state that the agent sees to inform decision making (this may be thought of
@@ -27,8 +26,11 @@ class FMDSim(rli.Simulation):
     
     """
     def __init__(self, Agent, Environment, max_time, full = False, \
-        time_save_state = None, trials_save_state = None, \
-        save_dir = None, save_name = "state", **kwargs):
+            time_save_state = None, trials_save_state = None, \
+            save_dir = None, save_name = "state", **kwargs):
+        
+        # Call the initialisation method of the parent class
+        super(self.__class__, self).__init__(Agent, Environment, max_time, **kwargs)
         
         self.agt = Agent
         self.env = Environment
@@ -537,7 +539,7 @@ class Outbreak_cc_vc(core.Outbreak):
                 # output the distance to an IP, which IP was the one closest to the
                 # farm in question
                 if D_inf_to_sus.any():
-                    nbhd, dist2ip, which_ip = utils.NeighbourhoodDetail(D_inf_to_sus, \
+                    nbhd, dist2ip, which_ip = utilities.NeighbourhoodDetail(D_inf_to_sus, \
                         current_a.outer_r, current_a.inner_r)
                 
                     # Boolean list for whether each farms is a vacc candidate
@@ -582,7 +584,7 @@ class Outbreak_cc_vc(core.Outbreak):
             
                 if D_inf_to_sus.any():
                     # Find which are within the vaccination radius
-                    nbhd, dist2ip, which_ip = utils.NeighbourhoodDetail(D_inf_to_sus, \
+                    nbhd, dist2ip, which_ip = utilities.NeighbourhoodDetail(D_inf_to_sus, \
                         current_a.outer_r, current_a.inner_r)
                 
                     ############################
