@@ -1,4 +1,4 @@
 Context matters in emergency disease control
 --------------------------------------------
 
-Repository for the code.  
+Install using `cd context_matters; python setup.py install --user`.  
