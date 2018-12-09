@@ -1,1 +1,14 @@
+# OSX-specific files
 .DS_Store
+
+# Files associated with the distribution
+MANIFEST
+build/
+dist/
+
+# Project-specific files
+
+# C/Cython files
+*.c
+*.so
+context_matters/__pycache__
