@@ -30,7 +30,6 @@ Available classes:
 -------------
 - Simulation
 
-- StateFarms: A state of farms in a Landscape; rli.Sensation
 - State: A state of farms in a Landscape; rli.Sensation
 - Cull: A ring culling action; rli.Action
 - Vacc: A ring vaccination action; rli.Action
@@ -43,7 +42,7 @@ Available classes:
 
 import numpy as np, copy, pandas as pd
 import scipy.spatial as sp
-from am4fmd import utils, rli, cy, iterate
+from . import rli, cy, utilities as utils
 
 class State(rli.Sensation):
     """
@@ -318,32 +317,6 @@ class Vacc(rli.Action):
         return self._dccull
 
 
-class MCExploringStarts(rli.Agent):
-    """
-    Class representing Monte Carlo exploring starts control algorithm 
-    assuming exploring starts and that episodes always terminate for all
-    policies.  
-    
-    Figure 5.4 of Sutton and Barto (2008) Reinforcement Learning
-    
-    Choose starting state.  
-    Choose a starting action
-    """
-    
-    def __init__(self):
-        # Append the list of available actions
-        pass
-    
-    def start_trial(self, state):
-        """
-        Choose 
-        """
-        pass
-    
-    def step(self, s, action, reward, next_s, t):
-        pass
-
-
 class SarsaAgentTabular(rli.Agent):
     """
     Class representing a SARSA Agent with value function stored in a dictionary.
@@ -588,7 +561,7 @@ class StaticAgent(SarsaAgentTabular):
 class Kernel(object):
     """Class representing a kernel object.  
     
-    See am4fmd.kernels for subclasses of the Kernel class.  
+    See context_matters.kernels for subclasses of the Kernel class.  
     
     User needs to define the __call__ method.  
     
@@ -699,12 +672,6 @@ class Outbreak(rli.Environment):
         grid: numpy.array
             grid square index within which each farm is situated
         
-        grid_x: numpy.array
-            grid square column within which each farm is situated
-            
-        grid_y: numpy.array
-            grid square row within which each farm is situated
-            
         kernel: Kernel
             kernel object for use in this outbreak
             
@@ -737,7 +704,7 @@ class Outbreak(rli.Environment):
             
         KDist2all: numpy.array
             
-        start: StateFarms
+        start: State
             the starting state of the outbreak
         
     Methods
@@ -774,13 +741,9 @@ class Outbreak(rli.Environment):
             d_perim = np.ceil(np.max([np.max(x) - np.min(x), \
                 np.max(y) - np.min(y)]))
             
-            self._grid_x, self._grid_y, self._grid = \
-                utils.Coords2Grid(x, y, d_perim, d_perim, \
-                grid_shape[0], grid_shape[1])
+            self._grid = utils.Coords2Grid(x, y, grid_shape[0], grid_shape[1])
         else:
             self._grid = None
-            self._grid_x = None
-            self._grid_y = None
         
         # Define the kernel, and evaluate squared distances
         # between all farms using this kernel
@@ -813,9 +776,7 @@ class Outbreak(rli.Environment):
         d_perim = np.ceil(np.max([np.max(x) - np.min(x), \
             np.max(y) - np.min(y)]))
         
-        self._grid_x, self._grid_y, self._grid = \
-            utils.Coords2Grid(x, y, d_perim, d_perim, \
-            grid_shape[0], grid_shape[1])
+        self._grid = utils.Coords2Grid(x, y, grid_shape[0], grid_shape[1])
     
     @property
     def start(self):
@@ -845,16 +806,6 @@ class Outbreak(rli.Environment):
     def grid(self):
         "Grid ID of farm in landscape"
         return self._grid
-    
-    @property
-    def grid_x(self):
-        "X grid ID of farm in landscape"
-        return self._grid_x
-    
-    @property
-    def grid_y(self):
-        "Y grid ID of farm in landscape"
-        return self._grid_y
     
     @property
     def period_latent(self):
