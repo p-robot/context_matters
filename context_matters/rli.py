@@ -1,5 +1,4 @@
-# rli.py
-#!/usr/bin/python
+#!/usr/bin/env python3
 """
 Flexible interface for reinforcement learning.  
 
