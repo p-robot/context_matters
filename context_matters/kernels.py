@@ -36,7 +36,7 @@ References
 """
 
 import numpy as np
-from am4fmd import core
+from . import core
 
 
 class PowerKernel(core.Kernel):
