@@ -218,7 +218,7 @@ def hull_area(np.ndarray[DTYPE_d, ndim=1] x, np.ndarray[DTYPE_d, ndim=1] y):
     Example:
         import scipy.spatial as sp
         from am4fmd.data.load_data import circ3km
-        from am4fmd.cy import hull_area
+        from cy import hull_area
 
         hull = sp.ConvexHull(zip(circ3km.x, circ3km.y))
         x = hull.points[hull.vertices][:,0]
