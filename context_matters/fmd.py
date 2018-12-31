@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-
+#!/usr/bin/env python3
 """
 Run an FMD outbreak with ring culling and vaccination actions.  
 
