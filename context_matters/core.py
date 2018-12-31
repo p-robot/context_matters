@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 """
 Core classes for objects in a Foot-and-mouth (FMD) outbreak.
 
