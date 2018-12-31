@@ -1,4 +1,9 @@
-Context matters in emergency disease control
---------------------------------------------
+# Context matters in emergency disease control
 
-Install using `cd context_matters; python setup.py install --user`.  
+Install using:
+
+```bash
+git clone git@github.com:p-robot/context_matters.git
+cd context_matters
+python setup.py install --user
+```
