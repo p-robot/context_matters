@@ -745,7 +745,7 @@ class Outbreak_cc_vc(core.Outbreak):
         return reward, next_s
 
 
-class MCAgent_new(rli.Agent):
+class MCAgent(rli.Agent):
     """
     Class representing an agent that learns using epsilon-soft Monte Carlo control
     
