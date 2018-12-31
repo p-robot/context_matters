@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 """
 Spatial transmission kernels, evaluating the squared Euclidean distance between two points.  
 
