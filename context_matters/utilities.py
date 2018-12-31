@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+"""
+List of utility functions for the context_matters module
+"""
+
 import numpy as np
 
 def epsilon_soft(Qs, actions, epsilon):
