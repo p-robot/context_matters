@@ -434,7 +434,7 @@ class Simulation(object):
                     copy.deepcopy(next_s)\
                     ])
         
-        if (next_s.terminal):
+        if(next_s == self.terminal_state):
             culls = sum(s.n_cattle_original[next_s.status < 0])
             self.total_culls.append(culls)
             self.durations.append(self.timestep)
