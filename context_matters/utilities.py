@@ -188,12 +188,6 @@ def Coords2Grid(x, y, grid_n_x, grid_n_y):
     for x, y, g in zip(xx, yy, grid):
         plt.text(x, y, g)
     
-    for x, y, g in zip(xx, yy, gx):
-        plt.text(x - 0.5, y, g, color = 'blue')
-    
-    for x, y, g in zip(xx, yy, gy):
-        plt.text(x + 0.5, y, g, color = 'red')
-    
     plt.show()
     
     """
