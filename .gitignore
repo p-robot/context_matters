@@ -12,3 +12,6 @@ dist/
 *.c
 *.so
 context_matters/__pycache__
+__pycache__
+tests/__pycache__
+
