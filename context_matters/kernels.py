@@ -63,8 +63,22 @@ class ExponentialKernel(core.Kernel):
         self._g = kwargs.pop('g', 0.32386809538389649)#4.8)
         self._h = kwargs.pop('h', 0.0023630128749078491)#2.4)
         
+        self._k0 = kwargs.pop('k0', 0.3093)
+        self._delta0 = kwargs.pop('delta0', 0.0138)
+        self._delta_max = kwargs.pop('delta_max', 60*60.)
+        
     def __call__(self, dist_squared):
-        return self.g*np.exp(-self.h*np.sqrt(dist_squared))
+        
+        # Check if scalar, adjust as needed
+        dist_squared = np.asarray(dist_squared)
+        is_scalar = False if dist_squared.ndim > 0 else True
+        dist_squared.shape = (1,)*(1-dist_squared.ndim) + dist_squared.shape
+        
+        K = self.g*np.exp(-self.h*np.sqrt(dist_squared))
+        
+        K[(dist_squared < self.delta0)] = self.k0
+        K[(dist_squared >= self.delta_max)] = 0
+        return K
     
     @property
     def g(self):
