@@ -25,14 +25,11 @@ The following kernels are included:
 
 References
 ----------
-
-* Keeling and Rohani (2008)
-* Jewell et al. (2009)
-* Diggle (2006)
-* Chowell et al. (2006)
+* Keeling and Rohani (2008) Modeing Infectious Diseases.  Princeton Press.  
+* Jewell et al. (2009) Predicting undetected infections during the 2007 foot-and-mouth disease outbreak.  J. R. Soc. Interface (2009) 6, 1145 –1151.  
+* Diggle (2006) Spatio-temporal point processes, partial likelihood, foot and mouth disease.  Statistical Methods in Medical Research 2006; 15: 325–336
+* Chowell et al. (2006) The role of spatial mixing in the spread of foot-and-mouth disease.  Preventive Veterinary Medicine 73 (2006) 297–314
 * Deardon et al. (2010) Inference for individual-level models of infectious diseases in large populations. Stat. Sin. 20 (1) 239-261
-
-
 """
 
 import numpy as np
