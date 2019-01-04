@@ -84,11 +84,19 @@ class ExponentialKernel(core.Kernel):
     def g(self):
         "Multiplicative coefficient for exponential kernel"
         return self._g
-    
     @property
     def h(self):
         "Exp coefficient for exponential kernel"
         return self._h
+    @property
+    def k0(self):
+        return self._k0
+    @property
+    def delta0(self):
+        return self._delta0
+    @property
+    def delta_max(self):
+        return self._delta_max
 
 
 class UKKernel(core.Kernel):
