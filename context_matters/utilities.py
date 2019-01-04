@@ -3,7 +3,7 @@
 List of utility functions for the context_matters module
 """
 
-import numpy as np
+import numpy as np, pandas as pd
 
 def epsilon_soft(Qs, actions, epsilon):
     """
@@ -333,3 +333,48 @@ def calc_grid_probs(grid, grid_n_x, grid_n_y, Suscept, kernel_function, \
     np.fill_diagonal(MaxRate, np.inf)
     
     return(MaxRate, Num, first_, last_, max_sus, Dist2all, KDist2all)
+
+
+def dict2df_2d_notrace(Q, visits, statenames = ['ninf', 'area']):
+    """
+    Transform a dictionary with keys as a tuple of 
+    two-state variables into a pandas dataframe
+    
+    No trace is passed.  
+    
+    visits : dict or int
+    """
+    
+    if isinstance(visits, dict):
+        visit_states = pd.DataFrame(list(visits.keys()))
+        visit_states.columns = statenames
+        visit_states['visits'] = list(visits.values())
+    
+    n_acts = len(list(Q.values())[0])
+    act_names = ['a'+str(x) for x in range(n_acts)]
+    statenames.extend(act_names)
+    
+    # Output the value and visitation matrices to csv files.  
+    states = pd.DataFrame(list(Q.keys()))
+    
+    if isinstance(visits, dict):
+        values = pd.DataFrame(list(Q.values()))
+    else:
+        values = pd.DataFrame([[np.mean(r) for r in v] for v in list(Q.values())])
+    
+    q = pd.concat((states, values), axis = 1)
+    
+    ind = q.iloc[:,2:(2+n_acts)].idxmin(axis = 1)
+    q.columns = statenames
+    
+    # Combine them... BE CAREFUL WITH THIS AS IT'S NOT USING AN INDEX
+    q['qmin'] = np.min(q.iloc[:,2:(2+n_acts)], axis = 1)
+    q['astar'] = ind
+    q['astar_name'] = q.iloc[:,2:(2+n_acts)].idxmin(axis = 1)
+    
+    if isinstance(visits, dict):
+        q = pd.merge(q, visit_states)
+    else: 
+        q['visits'] = visits
+    
+    return q
