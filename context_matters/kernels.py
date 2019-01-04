@@ -53,8 +53,37 @@ class PowerKernel(core.Kernel):
         "Coefficient for power law kernel"
         return self._k
 
-
 class ExponentialKernel(core.Kernel):
+    """
+    Class representing an exponential kernel
+    """
+    def __init__(self, **kwargs):
+        super(self.__class__, self).__init__(**kwargs)
+        self._g = kwargs.pop('g', 0.32386809538389649)#4.8)
+        self._h = kwargs.pop('h', 0.0023630128749078491)#2.4)
+        
+    def __call__(self, dist_squared):
+        
+        # Check if scalar, adjust as needed
+        dist_squared = np.asarray(dist_squared)
+        is_scalar = False if dist_squared.ndim > 0 else True
+        dist_squared.shape = (1,)*(1-dist_squared.ndim) + dist_squared.shape
+        
+        K = self.g*np.exp(-self.h*np.sqrt(dist_squared))
+        
+        return K
+    
+    @property
+    def g(self):
+        "Multiplicative coefficient for exponential kernel"
+        return self._g
+    @property
+    def h(self):
+        "Exp coefficient for exponential kernel"
+        return self._h
+
+
+class ExponentialKernelTruncated(core.Kernel):
     """
     Class representing an exponential kernel
     """
@@ -131,12 +160,11 @@ class UKKernel(core.Kernel):
             -1.30519*10**(-1), -0.609262, -3.231772])
         
         K = np.exp(np.polyval(P,dist_squared))
-        K = self.scaling_factor * K
         
-        #print("Dist sq", dist_squared)
-        #print("K", K)
         K[(dist_squared < self.delta0)] = self.k0
         K[(dist_squared >= self.delta_max)] = 0
+        
+        K = self.scaling_factor * K
         
         return(K if not is_scalar else K[0])
         
