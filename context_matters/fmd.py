@@ -752,12 +752,13 @@ class MCAgent(rli.Agent):
     If no starting action is given then a random action is chosen.  
     """
     def __init__(self, actions, epsilon, control_switch_times = range(300001), \
-            starting_action = None, verbose = False):
+            starting_action = None, verbose = False, update_value_fn = True):
         
         self._verbose = verbose
         self._epsilon = epsilon
         self._control_switch_times = control_switch_times
         self._starting_action = starting_action
+        self._update_value_fn = update_value_fn
         
         # List all valid actions
         self._actions = actions
@@ -790,7 +791,7 @@ class MCAgent(rli.Agent):
             action = self.starting_action
         
         # If Q[s] has not been seen before, create a table for it.
-        if not(state in self.Q):
+        if not(state in self.Q) and self.update_value_fn:
             self.Q[state] = np.empty(len(self.actions))
             self.Q[state][:] = 0.0
             self.visits[state] = 0
@@ -803,30 +804,29 @@ class MCAgent(rli.Agent):
     def step(self, s, action, reward, next_s, t, *args):
         
         # Check for terminal state
-        if (next_s == self._terminal_state):
-            
+        if(next_s == self._terminal_state):
             # Return a dummy action
             next_a = 20
             out_action = next_a
             
             # Loop through all state action pairs that we've seen, and append the return
             # and update the Q dictionary.  
-            for s1, a1 in self.sa_seen:
-                # Record the observed state
-                self.visits[s1] +=1
+            if self.update_value_fn:
+                for s1, a1 in self.sa_seen:
+                    # Record the observed state
+                    self.visits[s1] +=1
                 
-                # Duration of the outbreak is the variable t, append t to the returns[] list
-                self.returns[s1][a1.ind].append(t)
+                    # Duration of the outbreak is the variable t, append t to the returns[] list
+                    self.returns[s1][a1.ind].append(t)
                 
-                # Find the average of the durations for the state-action pair visited
-                self.Q[s1][a1.ind] = np.mean(self.returns[s1][a1.ind])
+                    # Find the average of the durations for the state-action pair visited
+                    self.Q[s1][a1.ind] = np.mean(self.returns[s1][a1.ind])
             
         else:
             # Check that it's time to change the action
             if t in self.control_switch_times:
-                
                 # If Q[s] has not been seen before, create a table for it.
-                if not(s in self.Q):
+                if not(s in self.Q) and self.update_value_fn:
                     self.Q[s] = np.empty(len(self.actions))
                     self.Q[s][:] = 0.0
                     self.visits[s] = 0
@@ -834,7 +834,7 @@ class MCAgent(rli.Agent):
                     # Create a numpy array to which we can append outbreak durations
                     self.returns[s] = [[] for a in self.actions]
                 
-                if not(next_s in self.Q):
+                if not(next_s in self.Q) and self.update_value_fn:
                     self.Q[next_s] = np.empty(len(self.actions))
                     self.Q[next_s][:] = 0.0
                     self.visits[next_s] = 0
@@ -847,12 +847,12 @@ class MCAgent(rli.Agent):
                 
                 next_a_idx = np.random.choice(len(self.actions), 1, p = action_probabilities)[0]
                 next_a = self.actions[next_a_idx]
-                
                 # Convert action to an index
                 ind = [i for i, v in enumerate(self.actions) if v == next_a][0]
                 
                 # Add the current state and action to the set of seen states
-                self.sa_seen.add((s, next_a))
+                if self.update_value_fn:
+                    self.sa_seen.add((s, next_a))
                 
             else:
                 # Stay with the same action if we're not at a point where actions change
@@ -877,6 +877,11 @@ class MCAgent(rli.Agent):
         return self._actions
     
     @property
+    def update_value_fn(self):
+        "Should we update the value function?"
+        return self._update_value_fn
+    
+    @property
     def control_switch_times(self):
         "List of times at which control can switch"
         return self._control_switch_times
@@ -890,6 +895,40 @@ class MCAgent(rli.Agent):
     def starting_action(self):
         "Starting action"
         return self._starting_action
+
+
+class StaticAgent(MCAgent):
+    def __init__(self, action, epsilon, starting_action, **kwargs):
+        
+        # Call the initialisation method of the parent class
+        super(self.__class__, self).__init__(actions = action, epsilon = epsilon, \
+            starting_action = starting_action, update_value_fn = False, **kwargs)
+    
+    def start_trial(self, state):
+        if self.starting_action is None:
+            action = random.choice(self.actions)
+        else:
+            action = self.starting_action
+        
+        return action
+    
+    def step(self, s, action, reward, next_s, t, *args):
+        
+        # Check for terminal state
+        if(next_s == self._terminal_state):
+            # Return a dummy action
+            next_a = 20
+            out_action = next_a
+            
+        else:
+            # Check that it's time to change the action
+            if t in self.control_switch_times:
+                next_a = self.actions[0]
+            else:
+                # Stay with the same action if we're not at a point where actions change
+                # or at the final time step. 
+                next_a = action
+        return next_a
 
 
 def choose_cull_candidates(status_being_culled, n_cattle, carcass_limit_global,
