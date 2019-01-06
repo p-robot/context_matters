@@ -8,6 +8,7 @@ W. Probert
 import scipy.spatial as sp
 import numpy as np, copy, pandas as pd, time, csv
 from os.path import join
+from scipy.spatial import distance as dist
 
 from . import core, rli, utilities, cy
 
@@ -928,6 +929,63 @@ class StaticAgent(MCAgent):
                 # Stay with the same action if we're not at a point where actions change
                 # or at the final time step. 
                 next_a = action
+        return next_a
+
+
+class MCAgent_robust(MCAgent):
+    """
+    Agent used for investigating performance under different seeding conditions.  
+    If the current state is not seen then the action is chosen according to the closest state
+    in the value function (via Euclidean distance).  
+    """
+    def __init__(self, actions, epsilon, update_value_fn = False, **kwargs):
+        
+        # Call the initialisation method of the parent class
+        super(self.__class__, self).__init__(actions = actions, epsilon = 0.0, \
+            update_value_fn = False, **kwargs)
+    
+    def start_trial(self, state):
+        """
+        Return starting action at the start of the trial
+        """
+        
+        if self.starting_action is None:
+            action = random.choice(self.actions)
+        else:
+            action = self.starting_action
+        
+        return action
+    
+    def step(self, s, action, reward, next_s, t, *args):
+        
+        # Check for terminal state
+        if(next_s == self._terminal_state):
+            # Return a dummy action
+            next_a = 20
+            out_action = next_a
+        else:
+            # Check that it's time to change the action
+            if t in self.control_switch_times:
+                
+                # If Q[s] has not been seen before, find action that's closest
+                if not(s in self.Q):
+                    keys = list(self.Q.keys())
+                    
+                    distances = dist.cdist(keys, [s], 'euclidean')
+                    ind = np.argmin(distances)
+                    s = tuple(keys[ind])
+                
+                # Determine the list of probabilities of choosing an action
+                action_probabilities = utilities.epsilon_soft(self.Q[s], self.actions, self.epsilon)
+                
+                next_a_idx = np.random.choice(len(self.actions), 1, p = action_probabilities)[0]
+                next_a = self.actions[next_a_idx]
+                
+            else:
+                # Stay with the same action if we're not at a point where actions change
+                # or at the final time step. 
+                next_a = action
+        
         return next_a
 
 
