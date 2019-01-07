@@ -239,6 +239,10 @@ class JewellKernel(core.Kernel):
     def __init__(self, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
         self._beta5 = kwargs.pop('beta5', 0.75)
+        self._k0 = kwargs.pop('k0', 0.3093)
+        self._delta0 = kwargs.pop('delta0', 0.0138)
+        self._delta_max = kwargs.pop('delta_max', 60*60.)
+        self._scaling_factor = kwargs.pop('scaling_factor', 1.0)
     
     def __call__(self, dist_squared):
         """
@@ -252,11 +256,28 @@ class JewellKernel(core.Kernel):
         
         K = self.beta5**2/(dist_squared + self.beta5**2)
         
+        K[(dist_squared < self.delta0)] = self.k0
+        K[(dist_squared >= self.delta_max)] = 0
+        
+        K = self.scaling_factor * K
+        
         return(K if not is_scalar else K[0])
         
     @property
     def beta5(self):
         return self._beta5
+    @property
+    def k0(self):
+        return self._k0
+    @property
+    def delta0(self):
+        return self._delta0
+    @property
+    def delta_max(self):
+        return self._delta_max
+    @property
+    def scaling_factor(self):
+        return self._scaling_factor
 
 
 class ConstantKernel(core.Kernel):
@@ -328,3 +349,53 @@ class DeardonKernel(core.Kernel):
     def delta_max(self):
         return self._delta_max
 
+
+class DiggleKernelTruncated(core.Kernel):
+    """
+    Class representing the kernel described in Diggle (2006).  
+    
+    Includes a 'spark' term, rho.  
+    """
+    def __init__(self, **kwargs):
+        super(self.__class__, self).__init__(**kwargs)
+        self._nu = kwargs.pop('nu', 1.0)
+        self._kappa = kwargs.pop('kappa', 0.5)
+        self._phi = kwargs.pop('phi', 0.41)
+        self._rho = kwargs.pop('rho', 1.3E-4)
+        
+        self._k0 = kwargs.pop('k0', 0.3093)
+        self._delta0 = kwargs.pop('delta0', 0.0138)
+        self._delta_max = kwargs.pop('delta_max', 60*60.)
+        
+    def __call__(self, dist_squared):
+        K = - np.power(np.sqrt(dist_squared)/self.phi, self.kappa)
+        
+        K = self.nu * np.exp(K) + self.rho
+        
+        K[(dist_squared < self.delta0)] = self.k0
+        K[(dist_squared >= self.delta_max)] = 0
+        
+        return K
+    
+    @property
+    def nu(self):
+        """Baseline probability of infection at zero distance"""
+        return self._nu
+    @property
+    def kappa(self):
+        return self._kappa
+    @property
+    def phi(self):
+        return self._phi
+    @property
+    def rho(self):
+        return self._rho
+    @property
+    def k0(self):
+        return self._k0
+    @property
+    def delta0(self):
+        return self._delta0
+    @property
+    def delta_max(self):
+        return self._delta_max
