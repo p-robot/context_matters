@@ -592,3 +592,45 @@ def plot_performance(df, colour_dict, alabels = None, ticks = False, \
     ax.spines['top'].set_visible(False)
     
     return fig, ax
+
+
+def plot_state(returns, colour_dict, x_lab = "", y_lab = "", title = "", ticks = False):
+    """
+    
+    returns = np.load("./output/18_12_09/test66_sim_dur_returns.npy").item()
+    
+    color_dict = dict({0:"#f03b20", 1:"#2ca25f"})
+    
+    states = [(3, 18.59811360882954), (9, 18.59811360882954), (11, 12.39874240588636)]
+    states = [(2, 12.39874240588636), (2, 6.19937120294318), (2, 18.59811360882954)]
+    
+    returns[state]
+    
+    Example
+    -------
+    
+    plt.savefig(join("graphics", "test_run" + str(test) + \
+        "_single_state_" + str(state[0]) + "_" + str(state[1]) + "_ticks_" + ticks + ".pdf"))
+    plt.close()
+    
+    """
+    fig, ax = plt.subplots()
+    
+    for i, r in enumerate(returns):
+        ax.hist(r, density = True, alpha = 0.4, color = colour_dict[i], bins = 12)
+        ax.axvline(x = np.mean(r), linestyle = "--", color = colour_dict[i], linewidth = 3)
+    
+    ax.set_xlabel(x_lab)
+    ax.set_ylabel(y_lab)
+    ax.set_title(title)
+
+    if not ticks:
+        ax.set_xticks([])
+        ax.set_xticklabels([])
+        ax.set_yticks([])
+        ax.set_yticklabels([])
+
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    
+    return fig, ax
