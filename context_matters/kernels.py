@@ -36,7 +36,7 @@ References
 
 import numpy as np
 from . import core
-
+from context_matters.data.load_data import kkern
 
 class PowerKernel(core.Kernel):
     """
