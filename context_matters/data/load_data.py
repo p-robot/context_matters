@@ -11,3 +11,6 @@ from os.path import join, dirname
 
 circ3km = pd.read_csv(join(dirname(__file__), \
     'circular_3km_data_n4000_seed12.csv'))
+
+kkern = pd.read_table(join(dirname(__file__), \
+    'Kernel'), sep = ' ', header = None)
