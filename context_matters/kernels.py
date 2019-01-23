@@ -9,6 +9,8 @@ The following kernels are included:
         An exponential kernel object
     UKKernel: 
          Polynomial kernel from the 2001 UK outbreak (Keeling and Rohani, 2008)
+    KeelingKernel: 
+         Empirical kernel from data from Keeling et al. (2001).  
     JewellKernel: 
         Cauchy kernel from Jewell et al. (2009).  
     Constant kernel: 
@@ -399,3 +401,54 @@ class DiggleKernelTruncated(core.Kernel):
     @property
     def delta_max(self):
         return self._delta_max
+
+
+class KeelingKernel(core.Kernel):
+    """
+    Empirical kernel generated from data from the 2001 outbreak of FMD in the
+    UK.  See Keeling et al. (2001) for details.
+    """
+    def __init__(self, **kwargs):
+        super(self.__class__, self).__init__(**kwargs)
+        self._k0 = kwargs.pop('k0', 0.313254)
+        self._scaling_factor = kwargs.pop('scaling_factor', 1.0)
+    
+    def __call__(self, dist_squared):
+        """
+        Interpolate from empirical Keeling kernel.  
+        
+        Columns in file saved in ./data/Kernel are 1) distance in meters, 
+        and 2) kernel value.  
+        
+        Values are left truncated to 0.313254, and right truncated to 0
+        
+        Args:
+            dist_squared: squared distance in km
+        Returns:
+            kernel function evaluated as the dist_squared distance
+        """
+        # Assumes xp values are increasing.  
+        
+        dist_squared = np.asarray(dist_squared)
+        is_scalar = False if dist_squared.ndim > 0 else True
+        dist_squared.shape = (1,)*(1-dist_squared.ndim) + dist_squared.shape
+        
+        D = np.sqrt(dist_squared)
+        
+        K = np.interp(D*1000, xp = kkern[0], fp = kkern[1], \
+            left = self.k0, right = 0)
+        
+        K = self.scaling_factor * K
+        
+        # Set distances of zero to have a kernel value of be zero.  
+        #masked_K = np.ma.masked_array(K, D == 0.0)
+        #K = masked_K.filled(fill_value = 0.0)
+        
+        return(K if not is_scalar else K[0])
+    
+    @property
+    def k0(self):
+        return self._k0
+    @property
+    def scaling_factor(self):
+        return self._scaling_factor
